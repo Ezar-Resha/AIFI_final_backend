@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y libgl1-mesa-glx
 COPY . /app
 
 # Expose the port that the Flask app runs on
+ENV PORT=5000
 EXPOSE 5000
 
 # Define the command to run the Flask app using Gunicorn
