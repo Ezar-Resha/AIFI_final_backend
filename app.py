@@ -48,44 +48,31 @@ def upload_image():
 
 @app.route('/calibrate', methods=['POST'])
 def calibrate_image():
-    if 'image' in request.form:
-        image_data = request.form['image']
-
-        # Check if the image data is Base64
-        if image_data.startswith("data:image"):
-            try:
-                # Decode the Base64 string
-                header, encoded = image_data.split(",", 1)
-                image_bytes = base64.b64decode(encoded)
-
-                # Save the decoded image to the upload folder
-                image_path = os.path.join(UPLOAD_FOLDER, 'uploaded_image.jpg')
-                with open(image_path, 'wb') as f:
-                    f.write(image_bytes)
-
-                # Process the image with YOLO
-                return process_image(image_path)
-
-            except Exception as e:
-                print(f"Error decoding and saving image: {e}")
-                return jsonify({'error': 'Failed to decode and save image'}), 500
-        else:
-            return jsonify({'error': 'Invalid image format'}), 400
-
-        # Check for file upload in request.files
-    elif 'image' in request.files:
+    # Check for file upload in request.files
+    if 'image' in request.files:
         image = request.files['image']
-
         if image.filename == '':
             return jsonify({'error': 'No selected file'}), 400
-
         try:
-            image = cv2.imread(image)
-            results = model(image)
+            # Save the uploaded image to a temporary location
+            temp_image_path = os.path.join(UPLOAD_FOLDER, image.filename)
+            image.save(temp_image_path)
+
+            # Now read the image using OpenCV
+            image_np = cv2.imread(temp_image_path)  # Read the image from the file path
+
+            if image_np is None:
+                return jsonify({'error': 'Failed to read image file'}), 400
+
+            # Perform object detection with the loaded model
+            results = model(image_np)  # Use the numpy array directly
             blocks = results[0].boxes  # List of bounding boxes detected
+
             if len(blocks) == 0:
-                return jsonify({'error': 'No block detected'}), 40
-            block = blocks[0]  # Take the first detected block
+                return jsonify({'error': 'No block detected'}), 400
+
+            # Take the first detected block
+            block = blocks[0]
             x1, y1, x2, y2 = map(int, block.xyxy[0])  # Extract bounding box coordinates
 
             length_pixels = x2 - x1
@@ -95,7 +82,7 @@ def calibrate_image():
 
         except Exception as e:
             print(f"Error saving image file: {e}")
-            return jsonify({'error': f'Failed to save image file :{e}'}), 500
+            return jsonify({'error': f'Failed to process image file: {e}'}), 500
     else:
         return jsonify({'error': 'No image data provided'}), 400
 
