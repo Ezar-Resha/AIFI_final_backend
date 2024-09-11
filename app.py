@@ -21,51 +21,30 @@ model = YOLO('yolov8n_plus_training.pt')
 def upload_image():
     pixel_to_cm_ratio = request.form.get('pixel_to_cm_ratio', type=float, default=1.0)
 
-    # Check for Base64-encoded image in form data
-    if 'image' in request.form:
-        image_data = request.form['image']
-
-        # Check if the image data is Base64
-        if image_data.startswith("data:image"):
-            try:
-                # Decode the Base64 string
-                header, encoded = image_data.split(",", 1)
-                image_bytes = base64.b64decode(encoded)
-
-                # Convert the decoded bytes to a numpy array and then to OpenCV format
-                image_np = np.frombuffer(image_bytes, dtype=np.uint8)
-                image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)  # Decode to OpenCV format
-
-                # Process the image with YOLO
-                return process_image(image, pixel_to_cm_ratio, quality=50)
-
-            except Exception as e:
-                print(f"Error decoding and processing image: {e}")
-                return jsonify({'error': 'Failed to decode and process image'}), 500
-        else:
-            return jsonify({'error': 'Invalid image format'}), 400
-
     # Check for file upload in request.files
-    elif 'image' in request.files:
+    if 'image' in request.files:
         image = request.files['image']
 
         if image.filename == '':
             return jsonify({'error': 'No selected file'}), 400
 
         try:
-            # Read the image in memory
-            image_bytes = image.read()
-            image_np = np.frombuffer(image_bytes, dtype=np.uint8)
-            image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)  # Decode to OpenCV format
+            # Save the uploaded image to a temporary location
+            temp_image_path = os.path.join(UPLOAD_FOLDER, image.filename)
+            image.save(temp_image_path)
+
+            # Now read the image using OpenCV
+            image_np = cv2.imread(temp_image_path)
 
             # Process the image with YOLO
-            return process_image(image, pixel_to_cm_ratio, quality=50)
+            return process_image(image_np, pixel_to_cm_ratio, quality=50)
 
         except Exception as e:
             print(f"Error reading and processing image: {e}")
-            return jsonify({'error': 'Failed to process image'}), 500
+            return jsonify({'error': f'Failed to process image: {e}'}), 500
     else:
         return jsonify({'error': 'No image data provided'}), 400
+
 
 @app.route('/calibrate', methods=['POST'])
 def calibrate_image():
